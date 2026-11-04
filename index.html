@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#111827">
+<title>Daily Money Tracker</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<style>
+:root{color-scheme:dark;--bg:#0b1020;--panel:#151d31;--muted:#9aa7bd;--text:#f4f7fb;--green:#34d399;--red:#fb7185;--line:#28334b}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(150deg,#101a31,#090d18 65%);color:var(--text);font:16px system-ui,-apple-system,Segoe UI,sans-serif;min-height:100vh}
+header{padding:28px 18px 18px;max-width:850px;margin:auto}h1{margin:0;font-size:clamp(26px,6vw,36px)}header p{color:var(--muted);margin:6px 0}
+main{max-width:850px;margin:auto;padding:0 16px 40px}.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:12px 0 18px}.card,.panel{background:rgba(21,29,49,.94);border:1px solid var(--line);border-radius:18px;padding:16px;box-shadow:0 12px 30px #0002}.card small,.muted{color:var(--muted)}.amount{font-size:clamp(18px,4vw,25px);font-weight:750;margin-top:7px;overflow-wrap:anywhere}.income{color:var(--green)}.expense{color:var(--red)}
+.panel{margin:14px 0}.panel h2{font-size:18px;margin:0 0 14px}.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}label{font-size:13px;color:var(--muted);display:block;margin-bottom:5px}input,select{width:100%;padding:12px;border:1px solid var(--line);border-radius:11px;background:#0c1426;color:var(--text);font:inherit;min-width:0}button{border:0;border-radius:11px;padding:12px 16px;font:600 15px system-ui;cursor:pointer}.primary{background:var(--green);color:#06251b}.secondary{background:#26334e;color:var(--text)}.danger{background:#3a2030;color:#ffb3c0}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.wide{grid-column:1/-1}
+.list{display:grid;gap:9px}.item{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#0d1629;border:1px solid var(--line);border-radius:13px;padding:12px}.item strong{display:block}.item small{color:var(--muted)}.right{text-align:right;white-space:nowrap}.empty{color:var(--muted);padding:16px;text-align:center}.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between}.toolbar input{max-width:230px}
+footer{text-align:center;color:var(--muted);font-size:12px;padding:8px 16px 28px}
+@media(max-width:560px){.cards{grid-template-columns:1fr}.card{padding:13px}.formgrid{grid-template-columns:1fr}.wide{grid-column:auto}.item{align-items:flex-start}.toolbar{align-items:stretch}.toolbar input{max-width:none}}
+</style>
+</head>
+<body>
+<header><h1>Daily Money Tracker</h1><p>Simple, private tracking for your everyday money.</p></header>
+<main>
+<section class="cards">
+ <div class="card"><small>Balance</small><div class="amount" id="balance">₹0.00</div></div>
+ <div class="card"><small>Total income</small><div class="amount income" id="income">₹0.00</div></div>
+ <div class="card"><small>Total expenses</small><div class="amount expense" id="expenses">₹0.00</div></div>
+</section>
+<section class="panel">
+<h2>Add a transaction</h2>
+<form id="txForm"><div class="formgrid">
+ <div><label for="type">Type</label><select id="type"><option value="expense">Expense</option><option value="income">Income</option></select></div>
+ <div><label for="amount">Amount (₹)</label><input id="amount" type="number" min="0.01" step="0.01" placeholder="e.g. 120" required></div>
+ <div><label for="category">Category</label><select id="category"><option>Food</option><option>Travel</option><option>Shopping</option><option>Education</option><option>Entertainment</option><option>Allowance</option><option>Gift</option><option>Bills</option><option>Other</option></select></div>
+ <div><label for="date">Date</label><input id="date" type="date" required></div>
+ <div class="wide"><label for="note">Note (optional)</label><input id="note" maxlength="80" placeholder="What was it for?"></div>
+</div><div class="actions"><button class="primary" type="submit">＋ Add transaction</button></div></form>
+</section>
+<section class="panel">
+<div class="toolbar"><h2>Transactions</h2><input id="search" placeholder="Search transactions…" aria-label="Search transactions"></div>
+<div id="transactions" class="list"><div class="empty">No transactions yet. Add one above.</div></div>
+<div class="actions"><button class="secondary" id="export">Export backup</button><button class="secondary" id="importBtn">Restore backup</button><input id="importFile" type="file" accept="application/json,.json" hidden><button class="danger" id="clear">Clear all</button></div>
+</section>
+</main>
+<footer>Your entries stay on this device. Export a backup regularly so you can restore them later.</footer>
+<script>
+const KEY='daily-money-tracker-v1';
+let transactions=JSON.parse(localStorage.getItem(KEY)||'[]');
+const $=id=>document.getElementById(id);
+const money=n=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR'}).format(n);
+$('date').value=new Date().toISOString().slice(0,10);
+function save(){localStorage.setItem(KEY,JSON.stringify(transactions));render()}
+function render(){
+ const inc=transactions.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+ const exp=transactions.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+ $('income').textContent=money(inc);$('expenses').textContent=money(exp);$('balance').textContent=money(inc-exp);
+ const q=$('search').value.trim().toLowerCase();
+ const rows=transactions.filter(t=>(t.note+' '+t.category+' '+t.date).toLowerCase().includes(q)).sort((a,b)=>b.date.localeCompare(a.date)||b.created-a.created);
+ $('transactions').innerHTML='';
+ if(!rows.length){$('transactions').innerHTML='<div class="empty">No matching transactions.</div>';return}
+ rows.forEach(t=>{
+  const el=document.createElement('div');el.className='item';
+  const left=document.createElement('div');const strong=document.createElement('strong');strong.textContent=t.category+(t.note?' · '+t.note:'');
+  const small=document.createElement('small');small.textContent=new Date(t.date+'T12:00:00').toLocaleDateString('en-IN')+' · '+t.type;
+  left.append(strong,small);
+  const right=document.createElement('div');right.className='right';
+  const val=document.createElement('strong');val.className=t.type;val.textContent=(t.type==='income'?'+':'−')+money(t.amount);
+  const del=document.createElement('button');del.className='danger';del.style.padding='5px 9px';del.style.marginTop='5px';del.textContent='Delete';del.onclick=()=>{transactions=transactions.filter(x=>x.id!==t.id);save()};
+  right.append(val,del);el.append(left,right);$('transactions').append(el);
+ });
+}
+$('txForm').addEventListener('submit',e=>{e.preventDefault();const amount=Number($('amount').value);if(!Number.isFinite(amount)||amount<=0)return;
+ transactions.push({id:crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random()),type:$('type').value,amount,category:$('category').value,date:$('date').value,note:$('note').value.trim(),created:Date.now()});
+ $('amount').value='';$('note').value='';save();
+});
+$('search').addEventListener('input',render);
+$('export').onclick=()=>{const blob=new Blob([JSON.stringify({app:'Daily Money Tracker',version:1,transactions},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='daily-money-tracker-backup.json';a.click();URL.revokeObjectURL(a.href)};
+$('importBtn').onclick=()=>$('importFile').click();
+$('importFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const data=JSON.parse(await f.text());const arr=Array.isArray(data)?data:data.transactions;if(!Array.isArray(arr))throw Error();if(!confirm('Restore this backup? Existing entries will be replaced.'))return;transactions=arr.filter(t=>t&&['income','expense'].includes(t.type)&&Number(t.amount)>0);save();alert('Backup restored.')}catch{alert('That backup file is not valid.')}e.target.value=''};
+$('clear').onclick=()=>{if(confirm('Delete every transaction on this device? This cannot be undone unless you exported a backup.')){transactions=[];save()}};
+if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));
+render();
+</script>
+</body></html>
